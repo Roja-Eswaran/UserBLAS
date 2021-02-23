@@ -368,7 +368,7 @@ MD5SUM = md5 -n
 endif
 
 ifeq ($(OSNAME), Linux)
-EXTRALIB	+= -lm
+EXTRALIB	+= -lm -I  $(argobot_inc) -L $(argobot_lib)  -labt
 NO_EXPRECISION = 1
 endif
 
@@ -436,7 +436,7 @@ ifneq ($(OSNAME), CYGWIN_NT)
 ifneq ($(OSNAME), Interix)
 ifneq ($(OSNAME), Android)
 ifdef SMP
-EXTRALIB   += -lpthread
+EXTRALIB   += -lpthread  -I  $(argobot_inc) -L $(argobot_lib)  -labt 
 endif
 endif
 endif

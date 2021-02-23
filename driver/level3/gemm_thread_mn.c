@@ -140,7 +140,7 @@ int CNAME(int mode, blas_arg_t *arg, BLASLONG *range_m, BLASLONG *range_n, int (
     queue[0].sb = sb;
 
     queue[procs - 1].next = NULL;
-
+     printf("gemm_mn\n");
     exec_blas(procs, queue);
   }
 

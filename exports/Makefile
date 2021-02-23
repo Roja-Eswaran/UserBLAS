@@ -149,11 +149,12 @@ dllinit.$(SUFFIX) : dllinit.c
 ifeq ($(OSNAME), $(filter $(OSNAME),Linux SunOS Android Haiku FreeBSD DragonFly))
 
 so : ../$(LIBSONAME)
-
+EXTRALIB += -I $(argobot_inc) -L $(argobot_lib) -labt
 ifeq ($(OSNAME), Android)
 INTERNALNAME = $(LIBPREFIX).so
-FEXTRALIB += -lm
+FEXTRALIB += -lm -labt
 EXTRALIB += -lm
+EXTRALIB += -labt
 else
 INTERNALNAME = $(LIBPREFIX).so.$(MAJOR_VERSION)
 endif
@@ -165,6 +166,7 @@ else
 	$(OBJCOPY) --redefine-syms objcopy.def ../$(LIBNAME) ../$(LIBNAME).renamed
 ../$(LIBSONAME) : ../$(LIBNAME).renamed linktest.c
 endif
+
 
 ifeq ($(F_COMPILER), INTEL)
 	$(FC) $(FFLAGS) $(LDFLAGS) -shared -o ../$(LIBSONAME) \
@@ -237,16 +239,16 @@ ifeq ($(OSNAME), AIX)
 ifeq ($(COMPILER_F77), xlf)
 
 goto32.$(SUFFIX) : ../$(LIBNAME) aix.def
-	ld -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib -lxlf90 -lc -lm  -lpthread
+	ld -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib -lxlf90 -lc -lm  -labt
 
 goto64.$(SUFFIX) : ../$(LIBNAME) aix.def
-	ld -b64 -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib/ppc64 -lxlf90 -lc -lm -lpthread
+	ld -b64 -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib/ppc64 -lxlf90 -lc -lm -labt
 else
 goto32.$(SUFFIX) : ../$(LIBNAME) aix.def
-	ld -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib -lg2c -lc -lm
+	ld -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib -lg2c -lc -lm -labt
 
 goto64.$(SUFFIX) : ../$(LIBNAME) aix.def
-	ld -b64 -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib/ppc64 -lg2c -lc -lm
+	ld -b64 -o $(@F) ../$(LIBNAME) -bE:aix.def -bM:SRE -bnoexpall -bnoentry -L$(HOME)/misc/lib/ppc64 -lg2c -lc -lm -labt
 endif
 endif
 
@@ -270,7 +272,7 @@ objconv.def : gensymbol ../Makefile.system ../getarch.c
 	perl ./gensymbol objconv $(ARCH) $(BU) $(EXPRECISION) $(NO_CBLAS)  $(NO_LAPACK) $(NO_LAPACKE) $(NEED2UNDERSCORES) $(ONLY_CBLAS) "$(SYMBOLPREFIX)" "$(SYMBOLSUFFIX)" $(BUILD_LAPACK_DEPRECATED) $(BUILD_BFLOAT16) $(BUILD_SINGLE) $(BUILD_DOUBLE) $(BUILD_COMPLEX) $(BUILD_COMPLEX16) > $(@F)
 
 test : linktest.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -w -o linktest linktest.c ../$(LIBSONAME) -lm && echo OK.
+	$(CC) $(CFLAGS) $(LDFLAGS) -w -o linktest linktest.c ../$(LIBSONAME) -lm -labt && echo OK.
 	rm -f linktest
 
 linktest.c : gensymbol ../Makefile.system ../getarch.c

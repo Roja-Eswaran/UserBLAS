@@ -96,7 +96,7 @@
 
 typedef struct {
   volatile
-   BLASLONG working[MAX_CPU_NUMBER][CACHE_LINE_SIZE * DIVIDE_RATE];
+   BLASLONG working[MAX_CPU_NUMBER][CACHE_LINE_SIZE * DIVIDE_RATE];//Rose
 } job_t;
 
 
@@ -218,9 +218,10 @@ typedef struct {
 #define START_RPCC()
 #define STOP_RPCC(COUNTER)
 #endif
-
+//#include "gemm.c"
 static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, IFLOAT *sa, IFLOAT *sb, BLASLONG mypos){
-
+//printf("Inner thread rose\n");
+  //printf("Number of threads:%ld\n",args->nthreads);
   IFLOAT *buffer[DIVIDE_RATE];
 
   BLASLONG k, lda, ldb, ldc;
@@ -248,7 +249,7 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
   BLASULONG waiting1 = 0;
   BLASULONG waiting2 = 0;
   BLASULONG waiting3 = 0;
-  BLASULONG waiting6[MAX_CPU_NUMBER];
+  BLASULONG waiting6[MAX_CPU_NUMBER];//ROse
   BLASULONG ops    = 0;
 
   for (i = 0; i < args -> nthreads; i++) waiting6[i] = 0;
@@ -288,7 +289,7 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
     n_from = range_n[mypos + 0];
     n_to   = range_n[mypos + 1];
   }
-
+//printf("Enna achi\n");
   /* Multiply C by beta if needed */
   if (beta) {
 #ifndef COMPLEX
@@ -352,7 +353,9 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
       /* Make sure if no one is using workspace */
       START_RPCC();
       for (i = 0; i < args -> nthreads; i++)
-	while (job[mypos].working[i][CACHE_LINE_SIZE * bufferside]) {YIELDING;};
+	while (job[mypos].working[i][CACHE_LINE_SIZE * bufferside]) {
+		//YIELDING;}
+		ABT_thread_yield();}//Rose: YIELDING;
       STOP_RPCC(waiting1);
       MB;
 
@@ -400,6 +403,7 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
 #endif
 
       WMB;
+      //printf("Works well before communication with others\n");
       /* Set flag so other threads can access local region of B */
       for (i = mypos_n * nthreads_m; i < (mypos_n + 1) * nthreads_m; i++)
         job[mypos].working[i][CACHE_LINE_SIZE * bufferside] = (BLASLONG)buffer[bufferside];
@@ -409,6 +413,7 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
     current = mypos;
     do {
 
+	 //printf("Different range\n");   
       /* This thread accesses regions of B from threads in the range
        * [ mypos_n * nthreads_m, (mypos_n+1) * nthreads_m ) */
       current ++;
@@ -421,7 +426,9 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
 
 	  /* Wait until other region of B is initialized */
 	  START_RPCC();
-	  while(job[current].working[mypos][CACHE_LINE_SIZE * bufferside] == 0) {YIELDING;};
+	  while(job[current].working[mypos][CACHE_LINE_SIZE * bufferside] == 0) {
+		  //YIELDING;}
+		  ABT_thread_yield();} //ROse
 	  STOP_RPCC(waiting2);
 	  MB;
 
@@ -444,7 +451,7 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
 	}
       }
     } while (current != mypos);
-
+   //printf("complred communicatiokn\n");
     /* Iterate through steps of m 
      * Note: First step has already been finished */
     for(is = m_from + min_i; is < m_to; is += min_i){
@@ -502,7 +509,10 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
   START_RPCC();
   for (i = 0; i < args -> nthreads; i++) {
     for (js = 0; js < DIVIDE_RATE; js++) {
-      while (job[mypos].working[i][CACHE_LINE_SIZE * js] ) {YIELDING;};
+      while (job[mypos].working[i][CACHE_LINE_SIZE * js] ) {
+	      //printf("Yielding\n");
+	      ABT_thread_yield();}//Rose
+	      //YIELDING;}
     }
   }
   STOP_RPCC(waiting3);
@@ -520,7 +530,7 @@ static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, 
 	  (double)ops/(double)kernel / 4. * 100.);
   fprintf(stderr, "\n");
 #endif
-
+  //printf("Done kernel*****************\n");
   return 0;
 }
 
@@ -538,27 +548,31 @@ static int gemm_driver(blas_arg_t *args, BLASLONG *range_m, BLASLONG
 		       *range_n, IFLOAT *sa, IFLOAT *sb,
                        BLASLONG nthreads_m, BLASLONG nthreads_n) {
 
-#ifndef USE_OPENMP
+//printf("mthread:%ld\t nthreads:%ld\n",nthreads_m,nthreads_n);
+//printf("MAX CPU NUMER:%d\n", MAX_CPU_NUMBER);
+//Rose
+/*#ifndef USE_OPENMP
 #ifndef OS_WINDOWS
 static pthread_mutex_t  level3_lock    = PTHREAD_MUTEX_INITIALIZER;
 #else
 CRITICAL_SECTION level3_lock;
 InitializeCriticalSection((PCRITICAL_SECTION)&level3_lock);
 #endif
-#endif
+#endif*/
 
   blas_arg_t newarg;
+  //int num_threads=10;
 
 #ifndef USE_ALLOC_HEAP
-  job_t          job[MAX_CPU_NUMBER];
+  job_t          job[MAX_CPU_NUMBER]; //Rose: MAX_CPU_NUMBER index
 #else
   job_t *        job = NULL;
 #endif
 
   blas_queue_t queue[MAX_CPU_NUMBER];
 
-  BLASLONG range_M_buffer[MAX_CPU_NUMBER + 2];
-  BLASLONG range_N_buffer[MAX_CPU_NUMBER + 2];
+  BLASLONG range_M_buffer[ MAX_CPU_NUMBER+ 2];
+  BLASLONG range_N_buffer[ MAX_CPU_NUMBER + 2];
   BLASLONG *range_M, *range_N;
   BLASLONG num_parts;
 
@@ -587,13 +601,13 @@ InitializeCriticalSection((PCRITICAL_SECTION)&level3_lock);
 #endif
 #endif
 
-#ifndef USE_OPENMP
+/*#ifndef USE_OPENMP
 #ifndef OS_WINDOWS
 pthread_mutex_lock(&level3_lock);
 #else
 EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
 #endif
-#endif
+#endif*/
 
 #ifdef USE_ALLOC_HEAP
   /* Dynamically allocate workspace */
@@ -713,20 +727,23 @@ EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
     }
     WMB;
     /* Execute parallel computation */
+    //printf("level 3 thread\n");
+    //printf("nthreads:%d\n",nthreads);
     exec_blas(nthreads, queue);
+    //printf("Not terminating from level 3 thread\n");
   }
 
 #ifdef USE_ALLOC_HEAP
   free(job);
 #endif
-
+/*
 #ifndef USE_OPENMP
 #ifndef OS_WINDOWS
   pthread_mutex_unlock(&level3_lock);
 #else
   LeaveCriticalSection((PCRITICAL_SECTION)&level3_lock);
 #endif
-#endif
+#endif*/
 
   return 0;
 }
@@ -735,6 +752,8 @@ int CNAME(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, IFLOAT *sa, IF
 
   BLASLONG m = args -> m;
   BLASLONG n = args -> n;
+  //printf("SIZE M:%ld N:%ld\n",m,n);
+  //printf("Number of threads:%ld\n",args->nthreads);
   BLASLONG nthreads_m, nthreads_n;
 
   /* Get dimensions from index ranges if available */

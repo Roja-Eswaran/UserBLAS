@@ -76,6 +76,7 @@ USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <signal.h>
 #include <sys/resource.h>
 #include <sys/time.h>
+#include<abt.h>
 #endif
 
 #ifndef likely
@@ -94,6 +95,9 @@ USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 extern unsigned int openblas_thread_timeout();
+//#define ABT_MUTEX_INITIALIZER { { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } }#
+#define DEFAULT_NUM_XSTREAMS 56
+#define  DEFAULT_NUM_THREADS 56
 
 #ifdef SMP_SERVER
 
@@ -114,10 +118,10 @@ extern unsigned int openblas_thread_timeout();
 int blas_server_avail   __attribute__((aligned(ATTRIBUTE_SIZE))) = 0;
 
 /* Local Variables */
+
 #if   defined(USE_PTHREAD_LOCK)
-static pthread_mutex_t  server_lock    = PTHREAD_MUTEX_INITIALIZER;
-#elif defined(USE_PTHREAD_SPINLOCK)
-static pthread_spinlock_t  server_lock = 0;
+ABT_mutex_memory  server_lock_memory    = ABT_MUTEX_INITIALIZER;
+ABT_mutex server_lock = ABT_MUTEX_MEMORY_GET_HANDLE(&server_lock_memory);
 #else
 static unsigned long server_lock       = 0;
 #endif
@@ -125,7 +129,10 @@ static unsigned long server_lock       = 0;
 #define THREAD_STATUS_SLEEP		2
 #define THREAD_STATUS_WAKEUP		4
 
-static pthread_t       blas_threads [MAX_CPU_NUMBER];
+//static pthread_t       blas_threads [MAX_CPU_/bNUMBER];
+static ABT_xstream      xstreams [DEFAULT_NUM_XSTREAMS];
+static ABT_pool         pools    [DEFAULT_NUM_XSTREAMS];
+static ABT_thread       blas_threads [DEFAULT_NUM_THREADS];
 
 typedef struct {
   blas_queue_t * volatile queue   __attribute__((aligned(ATTRIBUTE_SIZE)));
@@ -136,10 +143,11 @@ typedef struct {
 
   volatile long		 status;
 
-  pthread_mutex_t	 lock;
-  pthread_cond_t	 wakeup;
+  ABT_mutex	 lock;
+  ABT_cond	 wakeup;
 
 } thread_status_t;
+
 
 #ifdef HAVE_C11
 #define	atomic_load_queue(p)		__atomic_load_n(p, __ATOMIC_RELAXED)
@@ -149,9 +157,7 @@ typedef struct {
 #define	atomic_store_queue(p, v)	(*(volatile blas_queue_t* volatile*)(p) = (v))
 #endif
 
-
-
-static thread_status_t thread_status[MAX_CPU_NUMBER] __attribute__((aligned(ATTRIBUTE_SIZE)));
+static thread_status_t thread_status[DEFAULT_NUM_THREADS] __attribute__((aligned(ATTRIBUTE_SIZE)));
 
 #ifndef THREAD_TIMEOUT
 #define THREAD_TIMEOUT	28
@@ -330,7 +336,7 @@ int openblas_setaffinity(int thread_idx, size_t cpusetsize, cpu_set_t* cpu_set) 
     return -1;
   }
 
-  pthread_t thread = (thread_idx == active_threads - 1)
+ABT_thread thread = (thread_idx == active_threads - 1)
       ? pthread_self()
       : blas_threads[thread_idx];
 
@@ -384,13 +390,13 @@ blas_queue_t *tscq;
       tscq = atomic_load_queue(&thread_status[cpu].queue);
 
 	while(!tscq) {
-	YIELDING;
+	ABT_thread_yield();//Rose YIELDING
 
 	if ((unsigned int)rpcc() - last_tick > thread_timeout) {
 
 
 	  if (!atomic_load_queue(&thread_status[cpu].queue)) {
-	    pthread_mutex_lock  (&thread_status[cpu].lock);
+	    ABT_mutex_lock  (thread_status[cpu].lock);
 	    thread_status[cpu].status = THREAD_STATUS_SLEEP;
 	    while (thread_status[cpu].status == THREAD_STATUS_SLEEP && 
 			    !atomic_load_queue(&thread_status[cpu].queue)) {
@@ -399,9 +405,9 @@ blas_queue_t *tscq;
 	      main_status[cpu] = MAIN_SLEEPING;
 #endif
 
-	      pthread_cond_wait(&thread_status[cpu].wakeup, &thread_status[cpu].lock);
+	      ABT_cond_wait(thread_status[cpu].wakeup, thread_status[cpu].lock);
 	    }
-	    pthread_mutex_unlock(&thread_status[cpu].lock);
+	    ABT_mutex_unlock(thread_status[cpu].lock);
 	  }
 
 	  last_tick = (unsigned int)rpcc();
@@ -610,22 +616,23 @@ static int blas_monitor(void *arg){
 
 /* Initializing routine */
 int blas_thread_init(void){
+ //printf("Init function\n");
   BLASLONG i;
   int ret;
   int thread_timeout_env;
 #ifdef NEED_STACKATTR
-  pthread_attr_t attr;
+  //Rose: pthread_attr_t attr;
 #endif
 
   if (blas_server_avail) return 0;
-
-#ifdef NEED_STACKATTR
+//Rose:
+/*#ifdef NEED_STACKATTR
   pthread_attr_init(&attr);
   pthread_attr_setguardsize(&attr,  0x1000U);
   pthread_attr_setstacksize( &attr, 0x1000U);
-#endif
+#endif*/
 
-  LOCK_COMMAND(&server_lock);
+  ABT_mutex_lock(server_lock);
 
   if (!blas_server_avail){
 
@@ -635,22 +642,45 @@ int blas_thread_init(void){
       if (thread_timeout_env > 30) thread_timeout_env = 30;
       thread_timeout = (1 << thread_timeout_env);
     }
+    int argc; char **argv;
+    
+    
+     ABT_init(argc,argv);
+     ABT_xstream_self(&xstreams[0]);
+        for (int i = 1; i < DEFAULT_NUM_XSTREAMS; i++) {
+                ABT_xstream_create(ABT_SCHED_NULL, &xstreams[i]);
+        }
+        for (int i = 0; i < DEFAULT_NUM_XSTREAMS; i++) {
+                ABT_xstream_get_main_pools(xstreams[i], 1, &pools[i]);
+        }
 
-    for(i = 0; i < blas_num_threads - 1; i++){
+   //printf("BLAS_NUM_THREADS INSIDE BLAS_INIT:%d\n", DEFAULT_NUM_THREADS);
+   // Roja: Replace blas_num_threads with default);
+    for(i = 0; i < DEFAULT_NUM_THREADS; i++){
 
+	int pool_id=i%DEFAULT_NUM_XSTREAMS;
       atomic_store_queue(&thread_status[i].queue, (blas_queue_t *)0);
       thread_status[i].status = THREAD_STATUS_WAKEUP;
 
-      pthread_mutex_init(&thread_status[i].lock, NULL);
-      pthread_cond_init (&thread_status[i].wakeup, NULL);
+      ABT_mutex_create(&thread_status[i].lock);
+      ABT_cond_create (&thread_status[i].wakeup);
 
 #ifdef NEED_STACKATTR
-      ret=pthread_create(&blas_threads[i], &attr,
-		     &blas_thread_server, (void *)i);
+      //ret=pthread_create(&blas_threads[i], &attr,
+	//	     &blas_thread_server, (void *)i);
+	  
+          
+	  ret=ABT_thread_create(pools[pool_id],(void *)blas_thread_server, (void *)i, &attr,
+                     &blas_threads[i]);
+
 #else
-      ret=pthread_create(&blas_threads[i], NULL,
-		     &blas_thread_server, (void *)i);
+      //ret=pthread_create(&blas_threads[i], NULL,
+	//
+	//	     &blas_thread_server, (void *)i);
+	  ret=ABT_thread_create(pools[pool_id],(void *)blas_thread_server, (void *)i, ABT_THREAD_ATTR_NULL,
+                     &blas_threads[i]);
 #endif
+
       if(ret!=0){
 	struct rlimit rlim;
         const char *msg = strerror(ret);
@@ -666,18 +696,20 @@ int blas_thread_init(void){
           exit(EXIT_FAILURE);
         }
       }
+      //printf("POOL ID:%d\n", pool_id);
     }
-
-#ifdef MONITOR
+//Rose
+/*#ifdef MONITOR
     pthread_create(&monitor_thread, NULL,
 		     (void *)&blas_monitor, (void *)NULL);
-#endif
+#endif*/
 
     blas_server_avail = 1;
+   // printf("BLAS SERVER INIT FINISH\n");
   }
 
-  UNLOCK_COMMAND(&server_lock);
-
+  ABT_mutex_unlock(server_lock);
+  //printf("RETURNED from blas_server init\n");
   return 0;
 }
 
@@ -692,10 +724,12 @@ int blas_thread_init(void){
 static BLASULONG exec_queue_lock = 0;
 
 int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
-
+  //printf("exec_blas_async:%d\n",pos);
 #ifdef SMP_SERVER
   // Handle lazy re-init of the thread-pool after a POSIX fork
-  if (unlikely(blas_server_avail == 0)) blas_thread_init();
+  if (unlikely(blas_server_avail == 0)) {blas_thread_init();
+	
+  }
 #endif
   BLASLONG i = 0;
   blas_queue_t *current = queue;
@@ -784,7 +818,7 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
       tspq = atomic_load_queue(&thread_status[pos].queue);
 
       if ((BLASULONG)tspq > 1) {
-	pthread_mutex_lock  (&thread_status[pos].lock);
+	ABT_mutex_lock  (thread_status[pos].lock);
 
 	if (thread_status[pos].status == THREAD_STATUS_SLEEP) {
 
@@ -795,20 +829,21 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
 
 	  if (thread_status[pos].status == THREAD_STATUS_SLEEP) {
 	    thread_status[pos].status = THREAD_STATUS_WAKEUP;
-	    pthread_cond_signal(&thread_status[pos].wakeup);
+	    ABT_cond_signal(thread_status[pos].wakeup);
 	  }
 
 	}
-	  pthread_mutex_unlock(&thread_status[pos].lock);
+	  ABT_mutex_unlock(thread_status[pos].lock);
       }
 
       current = current -> next;
     }
-
+// printf("Not reurning from blas_async?????????????\n");
   return 0;
 }
 
 int exec_blas_async_wait(BLASLONG num, blas_queue_t *queue){
+	//printf("async_wait:%d\n",num);
   blas_queue_t * tsqq;
 
     while ((num > 0) && queue) {
@@ -817,7 +852,7 @@ int exec_blas_async_wait(BLASLONG num, blas_queue_t *queue){
 
 
       while(tsqq) {
-	YIELDING;
+	ABT_thread_yield();//YIELDING;
         tsqq = atomic_load_queue(&thread_status[queue->assigned].queue);
       };
 
@@ -836,10 +871,12 @@ int exec_blas_async_wait(BLASLONG num, blas_queue_t *queue){
 
 /* Execute Threads */
 int exec_blas(BLASLONG num, blas_queue_t *queue){
-
+  //printf("Exec blas:%d\n",num);
 #ifdef SMP_SERVER
   // Handle lazy re-init of the thread-pool after a POSIX fork
-  if (unlikely(blas_server_avail == 0)) blas_thread_init();
+  if (unlikely(blas_server_avail == 0)) {blas_thread_init();
+	
+  }
 #endif
   int (*routine)(blas_arg_t *, void *, void *, double *, double *, BLASLONG);
 
@@ -865,6 +902,7 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
 
   if ((num > 1) && queue -> next) exec_blas_async(1, queue -> next);
 
+  //printf("retunred from exec_blas_async\n");
 #ifdef TIMING_DEBUG
   start = rpcc();
 
@@ -874,22 +912,25 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
   routine = queue -> routine;
 
   if (queue -> mode & BLAS_LEGACY) {
+	  //printf("LEAGCY EXEC\n");
     legacy_exec(routine, queue -> mode, queue -> args, queue -> sb);
   } else
     if (queue -> mode & BLAS_PTHREAD) {
+	   // printf("PTHREAD ROUNTINE\n");
       void (*pthreadcompat)(void *) = queue -> routine;
       (pthreadcompat)(queue -> args);
-    } else
+    } else{
       (routine)(queue -> args, queue -> range_m, queue -> range_n,
 		queue -> sa, queue -> sb, 0);
-
+     // printf("Returned from exec_blas\n");
+    }
 #ifdef TIMING_DEBUG
   stop = rpcc();
 #endif
 
   if ((num > 1) && queue -> next) {
     exec_blas_async_wait(num - 1, queue -> next);
-
+  //  printf("Async_Wait???\n");
     // arm: make sure results from other threads are visible
     MB;
   }
@@ -899,21 +940,23 @@ int exec_blas(BLASLONG num, blas_queue_t *queue){
 	  start, stop,
 	  stop - start);
 #endif
-
+  //printf("Returning ?????????????????????????? from exec blas\n");
   return 0;
 }
 
 void goto_set_num_threads(int num_threads) {
 
   long i;
-
+  //printf("Inside setnum threads:%d\n",num_threads);	
+  //printf("Blas Number threads:%d\n",blas_num_threads);
+ //printf("gotsetnumblas_threads\n");
 #ifdef SMP_SERVER
   // Handle lazy re-init of the thread-pool after a POSIX fork
-  if (unlikely(blas_server_avail == 0)) blas_thread_init();
+  if (unlikely(blas_server_avail == 0)){ blas_thread_init();
+ }
 #endif
 
   if (num_threads < 1) num_threads = blas_num_threads;
-
 #ifndef NO_AFFINITY
   if (num_threads == 1) {
     if (blas_cpu_number == 1){
@@ -926,35 +969,51 @@ void goto_set_num_threads(int num_threads) {
     }
   }
 #endif
-
   if (num_threads > MAX_CPU_NUMBER) num_threads = MAX_CPU_NUMBER;
 
   if (num_threads > blas_num_threads) {
 
-    LOCK_COMMAND(&server_lock);
+    ABT_mutex_lock(server_lock);
 
     increased_threads = 1;
 
-    for(i = blas_num_threads - 1; i < num_threads - 1; i++){
+        /*ABT_xstream_self(&xstreams[0]);
+        for (int i = 1; i < DEFAULT_NUM_XSTREAMS; i++) {
+                ABT_xstream_create(ABT_SCHED_NULL, &xstreams[i]);
+        }
+        for (int i = 0; i < DEFAULT_NUM_XSTREAMS; i++) {
+                ABT_xstream_get_main_pools(xstreams[i], 1, &pools[i]);
+        }*/
 
+
+
+
+    for(i = blas_num_threads - 1; i < num_threads - 1; i++){
+	int pool_id=i%DEFAULT_NUM_XSTREAMS;
       atomic_store_queue(&thread_status[i].queue, (blas_queue_t *)0);
       thread_status[i].status = THREAD_STATUS_WAKEUP;
 
-      pthread_mutex_init(&thread_status[i].lock, NULL);
-      pthread_cond_init (&thread_status[i].wakeup, NULL);
+      ABT_mutex_create(&thread_status[i].lock);
+      ABT_cond_create (&thread_status[i].wakeup);
 
 #ifdef NEED_STACKATTR
-      pthread_create(&blas_threads[i], &attr,
-		     &blas_thread_server, (void *)i);
+//      pthread_create(&blas_threads[i], &attr,
+//		     &blas_thread_server, (void *)i);
+      ABT_thread_create(pools[pool_id],(void *)blas_thread_server, (void *)i, &attr,
+                     &blas_threads[i]);
+
 #else
-      pthread_create(&blas_threads[i], NULL,
-		     &blas_thread_server, (void *)i);
+  //    pthread_create(&blas_threads[i], NULL,
+//		     &blas_thread_server, (void *)i);
+		     ABT_thread_create(pools[pool_id],(void *)blas_thread_server, (void *)i, ABT_THREAD_ATTR_NULL,
+                     &blas_threads[i]);
+
 #endif
     }
 
     blas_num_threads = num_threads;
 
-    UNLOCK_COMMAND(&server_lock);
+    ABT_mutex_unlock(server_lock);
   }
 
 #ifndef NO_AFFINITY
@@ -973,9 +1032,12 @@ void goto_set_num_threads(int num_threads) {
 #endif
 #endif
 
+ //printf("Completed goto_blas_setnum\n");
 }
 
 void openblas_set_num_threads(int num_threads) {
+	//DEFAULT_NUM_THREADS=num_threads;
+	//num_threads=DEFAULT_NUM_THREADS;
 	goto_set_num_threads(num_threads);
 
 }
@@ -984,6 +1046,7 @@ void openblas_set_num_threads(int num_threads) {
 
 int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
 
+	//printf("gotoblas_pthread\n");
   blas_queue_t queue[MAX_CPU_NUMBER];
   int i;
 
@@ -1021,42 +1084,63 @@ int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
 /* kernel automatically kill threads.                                */
 
 int BLASFUNC(blas_thread_shutdown)(void){
-
+//printf("Starting to shutdown?\n");
   int i;
 
   if (!blas_server_avail) return 0;
 
-  LOCK_COMMAND(&server_lock);
+  ABT_mutex_lock(server_lock);
 
-  for (i = 0; i < blas_num_threads - 1; i++) {
+ // printf("BLAS THREADS INSIDE SGUTDOWN:%d\n",blas_num_threads);
+  //Rose
+  for (i = 0; i < DEFAULT_NUM_THREADS; i++) {
 
 
-    pthread_mutex_lock (&thread_status[i].lock);
+    ABT_mutex_lock (thread_status[i].lock);
 
     atomic_store_queue(&thread_status[i].queue, (blas_queue_t *)-1);
     thread_status[i].status = THREAD_STATUS_WAKEUP;
-    pthread_cond_signal (&thread_status[i].wakeup);
+    ABT_cond_signal (thread_status[i].wakeup);
 
-    pthread_mutex_unlock(&thread_status[i].lock);
+    ABT_mutex_unlock(thread_status[i].lock);
 
   }
-
-  for(i = 0; i < blas_num_threads - 1; i++){
-    pthread_join(blas_threads[i], NULL);
+// Changed the thread count : Roja
+ 
+ // printf("Mutex Freed\n");
+  for (int i = 0; i < DEFAULT_NUM_THREADS ; i++) {
+	  ABT_thread_join(blas_threads[i]);
+	  ABT_thread_free(&blas_threads[i]);
   }
+  //printf("Thread freed\n");
 
-  for(i = 0; i < blas_num_threads - 1; i++){
-    pthread_mutex_destroy(&thread_status[i].lock);
-    pthread_cond_destroy (&thread_status[i].wakeup);
+  
+  //printf("Mutex Freed\n");
+  for (int i = 1; i < DEFAULT_NUM_THREADS; i++) {
+	  ABT_xstream_join(xstreams[i]);
+	  ABT_xstream_free(&xstreams[i]);
   }
+  //printf("Stream Freed\n");
+ // ABT_finalize();
+  for(i = 0; i < DEFAULT_NUM_THREADS; i++){
+	  ABT_mutex_free(&thread_status[i].lock);
+	  ABT_cond_free (&thread_status[i].wakeup);
+  } 
+ // printf("Mutex Freed\n");
+  ABT_finalize();
+  //free(xstreams);
+  //free(pools);
+  //free(blas_threads);
 
-#ifdef NEED_STACKATTR
-  pthread_attr_destory(&attr);
-#endif
+  //printf("ABT Finalized\n");
+
+/*#ifdef NEED_STACKATTR
+n  pthread_attr_destory(&attr);
+#endif*/
 
   blas_server_avail = 0;
 
-  UNLOCK_COMMAND(&server_lock);
+  ABT_mutex_unlock(server_lock);
 
   return 0;
 }

@@ -760,7 +760,7 @@ int get_node_equal(void) {
 }
 
 int gotoblas_set_affinity(int pos) {
-
+printf("Gotoblas_affinity module\n");
   cpu_set_t cpu_mask;
 
   int mynode = 1;

@@ -1,0 +1,3 @@
+export argobot_inc=~/argobots_build/include
+export argobot_lib=~/argobots_build/lib
+export LD_LIBRARY_PATH=~/argobots_build/lib

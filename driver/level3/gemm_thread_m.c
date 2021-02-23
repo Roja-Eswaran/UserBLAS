@@ -42,6 +42,7 @@
 
 int CNAME(int mode, blas_arg_t *arg, BLASLONG *range_m, BLASLONG *range_n, int (*function)(), void *sa, void *sb, BLASLONG nthreads) {
 
+  printf("gemm_m\n");
   blas_queue_t queue[MAX_CPU_NUMBER];
   BLASLONG range[MAX_CPU_NUMBER + 1];
 

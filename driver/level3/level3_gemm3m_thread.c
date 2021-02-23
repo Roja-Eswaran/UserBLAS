@@ -988,7 +988,7 @@ EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
     }
 
     queue[num_cpu_m - 1].next = NULL;
-
+    printf("leve3_gemm3_thread\n");
     exec_blas(num_cpu_m, queue);
   }
 

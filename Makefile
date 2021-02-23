@@ -215,13 +215,13 @@ blas :
 	ln -fs $(LIBNAME) $(LIBPREFIX).$(LIBSUFFIX)
 	for d in $(BLASDIRS) ; \
 	do if test -d $$d; then \
-	  $(MAKE) -C $$d libs || exit 1 ; \
+	  $(MAKE) -C $$d libs -I  $(argobot_inc) -L $(argobot_lib)  -labt || exit 1 ; \
 	fi; \
 	done
 
-hpl :
-	ln -fs $(LIBNAME) $(LIBPREFIX).$(LIBSUFFIX)
-	for d in $(BLASDIRS) ../laswp exports ; \
+#hpl :
+#	ln -fs $(LIBNAME) $(LIBPREFIX).$(LIBSUFFIX)
+#	for d in $(BLASDIRS) ../laswp exports ; \
 	do if test -d $$d; then \
 	  $(MAKE) -C $$d $(@F) || exit 1 ; \
 	fi; \
@@ -233,9 +233,9 @@ ifeq ($(DYNAMIC_ARCH), 1)
 	done
 endif
 
-hpl_p :
-	ln -fs $(LIBNAME_P) $(LIBPREFIX)_p.$(LIBSUFFIX)
-	for d in $(SUBDIRS) ../laswp exports ; \
+#hpl_p :
+#	ln -fs $(LIBNAME_P) $(LIBPREFIX)_p.$(LIBSUFFIX)
+#	for d in $(SUBDIRS) ../laswp exports ; \
 	do if test -d $$d; then \
 	  $(MAKE) -C $$d $(@F) || exit 1 ; \
 	fi; \

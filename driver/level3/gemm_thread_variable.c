@@ -118,7 +118,7 @@ int CNAME(int mode,
     queue[0].sb = sb;
 
     queue[procs - 1].next = NULL;
-
+    printf("gemm_thread var\n");
     exec_blas(procs, queue);
   }
 

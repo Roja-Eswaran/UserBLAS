@@ -470,8 +470,7 @@ int blas_get_cpu_number(void){
   printf( "Adjusted number of threads : %3d\n", blas_num_threads);
 #endif
 
-  blas_cpu_number = blas_num_threads;
-
+  blas_cpu_number = blas_num_thread;
   return blas_num_threads;
 }
 #endif
@@ -1439,7 +1438,7 @@ static void _init_thread_memory(void *buffer) {
 
   queue[num_cpu - 1].next = NULL;
   queue[0].sa = buffer;
-
+ printf("mem culprit\n");
   exec_blas(num_cpu, queue);
 
 }
@@ -1519,6 +1518,7 @@ void CONSTRUCTOR gotoblas_init(void) {
   if (blas_cpu_number == 0) blas_get_cpu_number();
 #ifdef SMP_SERVER
   if (blas_server_avail == 0) blas_thread_init();
+  printf("Inside the memory and init blas thread\n");
 #endif
 #endif
 
@@ -3041,7 +3041,7 @@ static void _init_thread_memory(void *buffer) {
 
   queue[num_cpu - 1].next = NULL;
   queue[0].sa = buffer;
-
+  printf("thread_mem_init\n");
   exec_blas(num_cpu, queue);
 
 }
