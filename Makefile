@@ -215,7 +215,7 @@ blas :
 	ln -fs $(LIBNAME) $(LIBPREFIX).$(LIBSUFFIX)
 	for d in $(BLASDIRS) ; \
 	do if test -d $$d; then \
-	  $(MAKE) -C $$d libs -I  $(argobot_inc) -L $(argobot_lib)  -labt || exit 1 ; \
+	  $(MAKE) -O3 -C $$d libs -I  $(argobot_inc) -L $(argobot_lib)  -labt  || exit 1 ; \
 	fi; \
 	done
 

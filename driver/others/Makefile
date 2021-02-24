@@ -130,7 +130,7 @@ memory.$(SUFFIX) : $(MEMORY) ../../common.h ../../param.h
 	$(CC) $(CFLAGS) -c $< -o $(@F)
 
 blas_server.$(SUFFIX) : $(BLAS_SERVER) ../../common.h ../../common_thread.h ../../param.h
-	$(CC) $(CFLAGS) -c $< -o $(@F) -I  $(argobot_inc) -L $(argobot_lib) -labt
+	$(CC) $(CFLAGS) -O3 -c $< -o $(@F) -I  $(argobot_inc) -L $(argobot_lib) -labt
 
 openblas_set_num_threads.$(SUFFIX) : openblas_set_num_threads.c
 	$(CC) $(CFLAGS) -c $< -o $(@F)

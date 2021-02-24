@@ -120,8 +120,9 @@ int blas_server_avail   __attribute__((aligned(ATTRIBUTE_SIZE))) = 0;
 /* Local Variables */
 
 #if   defined(USE_PTHREAD_LOCK)
-ABT_mutex_memory  server_lock_memory    = ABT_MUTEX_INITIALIZER;
-ABT_mutex server_lock = ABT_MUTEX_MEMORY_GET_HANDLE(&server_lock_memory);
+/*ABT_mutex_memory  server_lock_memory    = ABT_MUTEX_INITIALIZER;
+ABT_mutex server_lock = ABT_MUTEX_MEMORY_GET_HANDLE(&server_lock_memory);*/
+static pthread_mutex_t  server_lock    = PTHREAD_MUTEX_INITIALIZER;
 #else
 static unsigned long server_lock       = 0;
 #endif
@@ -143,10 +144,12 @@ typedef struct {
 
   volatile long		 status;
 
-  ABT_mutex	 lock;
-  ABT_cond	 wakeup;
-
+//  ABT_mutex	 lock;
+  //ABT_cond	 wakeup;
+  pthread_mutex_t        lock;
+  pthread_cond_t         wakeup;
 } thread_status_t;
+
 
 
 #ifdef HAVE_C11
@@ -171,7 +174,7 @@ static unsigned int thread_timeout = (1U << (THREAD_TIMEOUT));
 /* Usually it turns off and it's for debugging.                   */
 
 static pthread_t      monitor_thread;
-static int main_status[MAX_CPU_NUMBER];
+static int main_status[DEFAULT_XSTREAMS];
 #define MAIN_ENTER	 0x01
 #define MAIN_EXIT	 0x02
 #define MAIN_TRYLOCK	 0x03
@@ -191,7 +194,7 @@ static int main_status[MAX_CPU_NUMBER];
 #define BLAS_QUEUE_RUNNING	4
 
 #ifdef TIMING
-BLASLONG	exit_time[MAX_CPU_NUMBER];
+BLASLONG	exit_time[DEFAULT_XSTREAMS];
 #endif
 
 static void legacy_exec(void *func, int mode, blas_arg_t *args, void *sb){
@@ -396,7 +399,8 @@ blas_queue_t *tscq;
 
 
 	  if (!atomic_load_queue(&thread_status[cpu].queue)) {
-	    ABT_mutex_lock  (thread_status[cpu].lock);
+	    //ABT_mutex_lock  (thread_status[cpu].lock);
+	     pthread_mutex_lock  (&thread_status[cpu].lock);
 	    thread_status[cpu].status = THREAD_STATUS_SLEEP;
 	    while (thread_status[cpu].status == THREAD_STATUS_SLEEP && 
 			    !atomic_load_queue(&thread_status[cpu].queue)) {
@@ -405,9 +409,11 @@ blas_queue_t *tscq;
 	      main_status[cpu] = MAIN_SLEEPING;
 #endif
 
-	      ABT_cond_wait(thread_status[cpu].wakeup, thread_status[cpu].lock);
+	      //ABT_cond_wait(thread_status[cpu].wakeup, thread_status[cpu].lock);
+	     pthread_cond_wait(&thread_status[cpu].wakeup, &thread_status[cpu].lock);
 	    }
-	    ABT_mutex_unlock(thread_status[cpu].lock);
+	    //ABT_mutex_unlock(thread_status[cpu].lock);
+	     pthread_mutex_unlock(&thread_status[cpu].lock);
 	  }
 
 	  last_tick = (unsigned int)rpcc();
@@ -565,7 +571,7 @@ static int blas_monitor(void *arg){
   int i;
 
   while(1){
-    for (i = 0; i < blas_num_threads - 1; i++){
+    for (i = 0; i < DEFAULT_NUM_THREADS - 1; i++){
       switch (main_status[i]) {
       case MAIN_ENTER :
 	fprintf(STDERR, "THREAD[%2d] : Entering.\n", i);
@@ -632,7 +638,8 @@ int blas_thread_init(void){
   pthread_attr_setstacksize( &attr, 0x1000U);
 #endif*/
 
-  ABT_mutex_lock(server_lock);
+  //ABT_mutex_lock(server_lock);
+   LOCK_COMMAND(&server_lock);
 
   if (!blas_server_avail){
 
@@ -647,23 +654,26 @@ int blas_thread_init(void){
     
      ABT_init(argc,argv);
      ABT_xstream_self(&xstreams[0]);
-        for (int i = 1; i < DEFAULT_NUM_XSTREAMS; i++) {
+        for (i = 1; i < DEFAULT_NUM_XSTREAMS; i++) {
                 ABT_xstream_create(ABT_SCHED_NULL, &xstreams[i]);
         }
-        for (int i = 0; i < DEFAULT_NUM_XSTREAMS; i++) {
+        for ( i = 0; i < DEFAULT_NUM_XSTREAMS; i++) {
                 ABT_xstream_get_main_pools(xstreams[i], 1, &pools[i]);
         }
 
    //printf("BLAS_NUM_THREADS INSIDE BLAS_INIT:%d\n", DEFAULT_NUM_THREADS);
    // Roja: Replace blas_num_threads with default);
-    for(i = 0; i < DEFAULT_NUM_THREADS; i++){
+    for(i = 0; i < DEFAULT_NUM_THREADS - 1; i++){
 
 	int pool_id=i%DEFAULT_NUM_XSTREAMS;
       atomic_store_queue(&thread_status[i].queue, (blas_queue_t *)0);
       thread_status[i].status = THREAD_STATUS_WAKEUP;
 
-      ABT_mutex_create(&thread_status[i].lock);
-      ABT_cond_create (&thread_status[i].wakeup);
+      //ABT_mutex_create(&thread_status[i].lock);
+      //ABT_cond_create (&thread_status[i].wakeup);
+       pthread_mutex_init(&thread_status[i].lock, NULL);
+      pthread_cond_init (&thread_status[i].wakeup, NULL);
+
 
 #ifdef NEED_STACKATTR
       //ret=pthread_create(&blas_threads[i], &attr,
@@ -708,8 +718,9 @@ int blas_thread_init(void){
    // printf("BLAS SERVER INIT FINISH\n");
   }
 
-  ABT_mutex_unlock(server_lock);
+  //ABT_mutex_unlock(server_lock);
   //printf("RETURNED from blas_server init\n");
+  UNLOCK_COMMAND(&server_lock);
   return 0;
 }
 
@@ -818,7 +829,8 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
       tspq = atomic_load_queue(&thread_status[pos].queue);
 
       if ((BLASULONG)tspq > 1) {
-	ABT_mutex_lock  (thread_status[pos].lock);
+	//ABT_mutex_lock  (thread_status[pos].lock);
+	 pthread_mutex_lock  (&thread_status[pos].lock);
 
 	if (thread_status[pos].status == THREAD_STATUS_SLEEP) {
 
@@ -829,11 +841,13 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
 
 	  if (thread_status[pos].status == THREAD_STATUS_SLEEP) {
 	    thread_status[pos].status = THREAD_STATUS_WAKEUP;
-	    ABT_cond_signal(thread_status[pos].wakeup);
+	    //ABT_cond_signal(thread_status[pos].wakeup);
+	     pthread_cond_signal(&thread_status[pos].wakeup);
 	  }
 
 	}
-	  ABT_mutex_unlock(thread_status[pos].lock);
+	 // ABT_mutex_unlock(thread_status[pos].lock);
+	  pthread_mutex_unlock(&thread_status[pos].lock);
       }
 
       current = current -> next;
@@ -973,7 +987,8 @@ void goto_set_num_threads(int num_threads) {
 
   if (num_threads > blas_num_threads) {
 
-    ABT_mutex_lock(server_lock);
+    //ABT_mutex_lock(server_lock);
+     LOCK_COMMAND(&server_lock);
 
     increased_threads = 1;
 
@@ -988,13 +1003,16 @@ void goto_set_num_threads(int num_threads) {
 
 
 
-    for(i = blas_num_threads - 1; i < num_threads - 1; i++){
+    for(i = DEFAULT_NUM_THREADS - 1; i < num_threads - 1; i++){
 	int pool_id=i%DEFAULT_NUM_XSTREAMS;
       atomic_store_queue(&thread_status[i].queue, (blas_queue_t *)0);
       thread_status[i].status = THREAD_STATUS_WAKEUP;
 
-      ABT_mutex_create(&thread_status[i].lock);
-      ABT_cond_create (&thread_status[i].wakeup);
+      //ABT_mutex_create(&thread_status[i].lock);
+      //ABT_cond_create (&thread_status[i].wakeup);
+      pthread_mutex_init(&thread_status[i].lock, NULL);
+      pthread_cond_init (&thread_status[i].wakeup, NULL);
+
 
 #ifdef NEED_STACKATTR
 //      pthread_create(&blas_threads[i], &attr,
@@ -1013,7 +1031,9 @@ void goto_set_num_threads(int num_threads) {
 
     blas_num_threads = num_threads;
 
-    ABT_mutex_unlock(server_lock);
+    //ABT_mutex_unlock(server_lock);
+    UNLOCK_COMMAND(&server_lock);
+
   }
 
 #ifndef NO_AFFINITY
@@ -1027,7 +1047,7 @@ void goto_set_num_threads(int num_threads) {
 
 #if defined(ARCH_MIPS64)
 #ifndef DYNAMIC_ARCH
-  //set parameters for different number of threads.
+  //set parametes for different number of threads.
   blas_set_parameter();
 #endif
 #endif
@@ -1047,7 +1067,7 @@ void openblas_set_num_threads(int num_threads) {
 int gotoblas_pthread(int numthreads, void *function, void *args, int stride) {
 
 	//printf("gotoblas_pthread\n");
-  blas_queue_t queue[MAX_CPU_NUMBER];
+  blas_queue_t queue[DEFAULT_NUM_XSTREAMS];
   int i;
 
   if (numthreads <= 0) return 0;
@@ -1089,26 +1109,29 @@ int BLASFUNC(blas_thread_shutdown)(void){
 
   if (!blas_server_avail) return 0;
 
-  ABT_mutex_lock(server_lock);
+  //ABT_mutex_lock(server_lock);
+  LOCK_COMMAND(&server_lock);
 
  // printf("BLAS THREADS INSIDE SGUTDOWN:%d\n",blas_num_threads);
   //Rose
-  for (i = 0; i < DEFAULT_NUM_THREADS; i++) {
+  for (i = 0; i < DEFAULT_NUM_THREADS - 1; i++) {
 
 
-    ABT_mutex_lock (thread_status[i].lock);
+    //ABT_mutex_lock (thread_status[i].lock);
+    pthread_mutex_lock (&thread_status[i].lock);
 
     atomic_store_queue(&thread_status[i].queue, (blas_queue_t *)-1);
     thread_status[i].status = THREAD_STATUS_WAKEUP;
-    ABT_cond_signal (thread_status[i].wakeup);
-
-    ABT_mutex_unlock(thread_status[i].lock);
+    //ABT_cond_signal (thread_status[i].wakeup);
+     pthread_cond_signal(&thread_status[i].wakeup);
+     pthread_mutex_unlock(&thread_status[i].lock);
+    //ABT_mutex_unlock(thread_status[i].lock);
 
   }
 // Changed the thread count : Roja
  
  // printf("Mutex Freed\n");
-  for (int i = 0; i < DEFAULT_NUM_THREADS ; i++) {
+  for (i = 0; i < DEFAULT_NUM_THREADS - 1; i++) {
 	  ABT_thread_join(blas_threads[i]);
 	  ABT_thread_free(&blas_threads[i]);
   }
@@ -1116,18 +1139,23 @@ int BLASFUNC(blas_thread_shutdown)(void){
 
   
   //printf("Mutex Freed\n");
-  for (int i = 1; i < DEFAULT_NUM_THREADS; i++) {
+  for (i = 1; i < DEFAULT_NUM_THREADS - 1 ; i++) {
 	  ABT_xstream_join(xstreams[i]);
 	  ABT_xstream_free(&xstreams[i]);
   }
   //printf("Stream Freed\n");
- // ABT_finalize();
-  for(i = 0; i < DEFAULT_NUM_THREADS; i++){
-	  ABT_mutex_free(&thread_status[i].lock);
-	  ABT_cond_free (&thread_status[i].wakeup);
+   //ABT_finalize();
+  for(i = 0; i < DEFAULT_NUM_THREADS - 1; i++){
+	 // ABT_mutex_free(&thread_status[i].lock);
+	 // ABT_cond_free (&thread_status[i].wakeup);
+	  pthread_mutex_destroy(&thread_status[i].lock);
+          pthread_cond_destroy (&thread_status[i].wakeup);
+
   } 
+  
+   
+//   ABT_finalize();
  // printf("Mutex Freed\n");
-  ABT_finalize();
   //free(xstreams);
   //free(pools);
   //free(blas_threads);
@@ -1140,8 +1168,8 @@ n  pthread_attr_destory(&attr);
 
   blas_server_avail = 0;
 
-  ABT_mutex_unlock(server_lock);
-
+ // ABT_mutex_unlock(server_lock);
+  UNLOCK_COMMAND(&server_lock);
   return 0;
 }
 
