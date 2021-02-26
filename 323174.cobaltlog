@@ -1,0 +1,25 @@
+Jobid: 323174
+qsub -I -t 200 -n 1 -q skylake_8180
+Thu Feb 25 18:57:23 2021 +0000 (UTC) submitted with cwd set to: /home/reswaran/UserBLAS/UserBLAS
+jobid 323174 submitted from terminal /dev/pts/32
+Thu Feb 25 18:57:37 2021 +0000 (UTC) 
+Thu Feb 25 18:57:37 2021 +0000 (UTC) Command: '/usr/bin/ssh' 'skylake09' '/usr/libexec/cobalt/cobalt-launcher.py' '--nf' '/var/tmp/cobalt.323174' '--jobid' '323174' '--cwd' '/home/reswaran/UserBLAS/UserBLAS' '--env' 'COBALT_JOBID=323174' '/bin/sleep' '12000'
+Thu Feb 25 18:57:37 2021 +0000 (UTC) 
+Thu Feb 25 18:57:37 2021 +0000 (UTC) Environment:
+Thu Feb 25 18:57:37 2021 +0000 (UTC) SHELL=/bin/bash
+Thu Feb 25 18:57:37 2021 +0000 (UTC) COBALT_NODEFILE=/tmp/tmpc0YbZ9
+Thu Feb 25 18:57:37 2021 +0000 (UTC) COBALT_PARTNAME=skylake09
+Thu Feb 25 18:57:37 2021 +0000 (UTC) COBALT_JOBID=323174
+Thu Feb 25 18:57:37 2021 +0000 (UTC) COBALT_STARTTIME=1614279446
+Thu Feb 25 18:57:37 2021 +0000 (UTC) LOGNAME=reswaran
+Thu Feb 25 18:57:37 2021 +0000 (UTC) USER=reswaran
+Thu Feb 25 18:57:37 2021 +0000 (UTC) COBALT_ENDTIME=1614291446
+Thu Feb 25 18:57:37 2021 +0000 (UTC) COBALT_PARTSIZE=1
+Thu Feb 25 18:57:37 2021 +0000 (UTC) HOME=/home/reswaran
+Thu Feb 25 18:57:37 2021 +0000 (UTC) COBALT_JOBSIZE=1
+Thu Feb 25 18:57:37 2021 +0000 (UTC) 
+Thu Feb 25 18:57:37 2021 +0000 (UTC) Info: stdin received from /dev/null
+Thu Feb 25 18:57:37 2021 +0000 (UTC) Info: stdout sent to /home/reswaran/UserBLAS/UserBLAS/323174.output
+Thu Feb 25 18:57:37 2021 +0000 (UTC) Info: stderr sent to /home/reswaran/UserBLAS/UserBLAS/323174.error
+Thu Feb 25 18:57:37 2021 +0000 (UTC) 
+Thu Feb 25 22:17:30 2021 +0000 (UTC) Info: maximum execution time exceeded; initiating job termination
