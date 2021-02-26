@@ -136,7 +136,6 @@ static unsigned long server_lock       = 0;
 static ABT_xstream      xstreams [MAX_CPU_NUMBER];
 static ABT_pool         pools    [MAX_CPU_NUMBER];
 static ABT_thread       blas_threads [MAX_CPU_NUMBER];
-
 typedef struct {
   blas_queue_t * volatile queue   __attribute__((aligned(ATTRIBUTE_SIZE)));
 
