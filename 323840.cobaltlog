@@ -1,0 +1,4 @@
+Jobid: 323840
+qsub -I -t 200 -n 1 -q skylake_8180
+Mon Mar 01 16:49:58 2021 +0000 (UTC) submitted with cwd set to: /home/reswaran/UserBLAS/UserBLAS
+jobid 323840 submitted from terminal /dev/pts/18

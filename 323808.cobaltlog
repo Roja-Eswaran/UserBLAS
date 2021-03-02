@@ -1,0 +1,24 @@
+Jobid: 323808
+qsub -I -t 200 -n 1 -q skylake_8180
+Mon Mar 01 13:29:19 2021 +0000 (UTC) submitted with cwd set to: /home/reswaran/UserBLAS/UserBLAS
+jobid 323808 submitted from terminal /dev/pts/18
+Mon Mar 01 13:29:39 2021 +0000 (UTC) 
+Mon Mar 01 13:29:39 2021 +0000 (UTC) Command: '/usr/bin/ssh' 'skylake11' '/usr/libexec/cobalt/cobalt-launcher.py' '--nf' '/var/tmp/cobalt.323808' '--jobid' '323808' '--cwd' '/home/reswaran/UserBLAS/UserBLAS' '--env' 'COBALT_JOBID=323808' '/bin/sleep' '12000'
+Mon Mar 01 13:29:39 2021 +0000 (UTC) 
+Mon Mar 01 13:29:39 2021 +0000 (UTC) Environment:
+Mon Mar 01 13:29:39 2021 +0000 (UTC) SHELL=/bin/bash
+Mon Mar 01 13:29:39 2021 +0000 (UTC) COBALT_NODEFILE=/tmp/tmpzdygGs
+Mon Mar 01 13:29:39 2021 +0000 (UTC) COBALT_PARTNAME=skylake11
+Mon Mar 01 13:29:39 2021 +0000 (UTC) COBALT_JOBID=323808
+Mon Mar 01 13:29:39 2021 +0000 (UTC) COBALT_STARTTIME=1614605369
+Mon Mar 01 13:29:39 2021 +0000 (UTC) LOGNAME=reswaran
+Mon Mar 01 13:29:39 2021 +0000 (UTC) USER=reswaran
+Mon Mar 01 13:29:39 2021 +0000 (UTC) COBALT_ENDTIME=1614617369
+Mon Mar 01 13:29:39 2021 +0000 (UTC) COBALT_PARTSIZE=1
+Mon Mar 01 13:29:39 2021 +0000 (UTC) HOME=/home/reswaran
+Mon Mar 01 13:29:39 2021 +0000 (UTC) COBALT_JOBSIZE=1
+Mon Mar 01 13:29:39 2021 +0000 (UTC) 
+Mon Mar 01 13:29:39 2021 +0000 (UTC) Info: stdin received from /dev/null
+Mon Mar 01 13:29:39 2021 +0000 (UTC) Info: stdout sent to /home/reswaran/UserBLAS/UserBLAS/323808.output
+Mon Mar 01 13:29:39 2021 +0000 (UTC) Info: stderr sent to /home/reswaran/UserBLAS/UserBLAS/323808.error
+Mon Mar 01 13:29:39 2021 +0000 (UTC) 

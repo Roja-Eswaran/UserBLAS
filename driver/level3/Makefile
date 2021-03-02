@@ -342,7 +342,7 @@ ifneq ($(BUILD_COMPLEX16),1)
 endif
 
 all ::
-ROSE_EXTRA = -O3 -I  $(argobot_inc) -L $(argobot_lib) -labt
+ROSE_EXTRA =  -I  $(argobot_inc) -L $(argobot_lib) -labt
 sbgemm_nn.$(SUFFIX) : gemm.c level3.c ../../param.h
 	$(CC) $(CFLAGS) $(BLOCKS) -c $(ROSE_EXTRA)-DHALF -UDOUBLE -UCOMPLEX -DNN $< -o $(@F)
 
@@ -550,7 +550,7 @@ gemm_thread_variable.$(SUFFIX) : gemm_thread_variable.c ../../common.h
 beta_thread.$(SUFFIX) : beta_thread.c ../../common.h
 	$(CC) -c $(CFLAGS) $< -o $(@F)
 
-ROSE_EXTRA = -O3 -I  $(argobot_inc) -L $(argobot_lib) -labt
+ROSE_EXTRA =  -I  $(argobot_inc) -L $(argobot_lib) -labt
 sbgemm_thread_nn.$(SUFFIX) : gemm.c level3_thread.c ../../param.h
 	$(CC) $(CFLAGS) $(BLOCKS)  -c $(ROSE_EXTRA) -DTHREADED_LEVEL3 -DHALF -UDOUBLE -UCOMPLEX -DNN $< -o $(@F)
 

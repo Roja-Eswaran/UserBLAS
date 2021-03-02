@@ -221,6 +221,7 @@ typedef struct {
 //#include "gemm.c"
 static int inner_thread(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, IFLOAT *sa, IFLOAT *sb, BLASLONG mypos){
 
+  //printf("MY POS:%ld\n",mypos);
   IFLOAT *buffer[DIVIDE_RATE];
 
   BLASLONG k, lda, ldb, ldc;
@@ -656,6 +657,7 @@ EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
     width = blas_quickdivide(m + nthreads_m - num_parts - 1, nthreads_m - num_parts);
 
     width = round_up(m, width, GEMM_PREFERED_SIZE);
+    //printf("Width:%ld\n",width);
 
     m -= width;
 
@@ -664,6 +666,7 @@ EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
 
     num_parts ++;
   }
+  //printf("Num Part:%d\n", num_parts);
   for (i = num_parts; i < MAX_CPU_NUMBER; i++) {
     range_M[i + 1] = range_M[num_parts];
   }
@@ -711,6 +714,7 @@ EnterCriticalSection((PCRITICAL_SECTION)&level3_lock);
 
       num_parts ++;
     }
+    //printf("N partition:%d\n",num_parts);
     for (j = num_parts; j < MAX_CPU_NUMBER; j++) {
       range_N[j + 1] = range_N[num_parts];
     }
@@ -783,6 +787,7 @@ int CNAME(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n, IFLOAT *sa, IF
     GEMM_LOCAL(args, range_m, range_n, sa, sb, 0);
   } else {
     args -> nthreads = nthreads_m * nthreads_n;
+//    printf("nthread_m:%d nthread_n:%d\n",nthreads_m,nthreads_n);
     gemm_driver(args, range_m, range_n, sa, sb, nthreads_m, nthreads_n);
   }
 

@@ -197,7 +197,6 @@ static int main_status[MAX_CPU_NUMBER];
 #ifdef TIMING
 BLASLONG	exit_time[MAX_CPU_NUMBER];
 #endif
-
 static void legacy_exec(void *func, int mode, blas_arg_t *args, void *sb){
 
       if (!(mode & BLAS_COMPLEX)){
@@ -630,6 +629,8 @@ int blas_thread_init(void){
   BLASLONG i;
   int ret;
   int thread_timeout_env;
+  char *thread_count=getenv("thread_count");
+  blas_num_threads=atoi(thread_count);
 #ifdef NEED_STACKATTR
  ABT_thread_attr *attr;
 #endif
@@ -657,6 +658,7 @@ int blas_thread_init(void){
     
      ABT_init(argc,argv);
      ABT_xstream_self(&xstreams[0]);
+     //printf("Created and Intialized thread:%d\n", blas_num_threads);
         for (i = 1; i < blas_num_threads - 1 ; i++) {
                 ABT_xstream_create(ABT_SCHED_NULL, &xstreams[i]);
         }
@@ -1029,6 +1031,7 @@ void goto_set_num_threads(int num_threads) {
 
 #ifndef NO_AFFINITY
   if(blas_cpu_number == 1 && num_threads > 1){
+    printf("No thread affinity\n");
     //Restore the thread 0 affinity.
     gotoblas_set_affinity(0);
   }
@@ -1042,7 +1045,8 @@ void goto_set_num_threads(int num_threads) {
   blas_set_parameter();
 #endif
 #endif
-
+  //OpenBLAS sets number of threads=112 CPUset=number of threads
+//printf("Thread set:%d CPU set:%d\n",blas_num_threads,blas_cpu_number);
 }
 
 void openblas_set_num_threads(int num_threads) {
@@ -1100,7 +1104,7 @@ int BLASFUNC(blas_thread_shutdown)(void){
   //ABT_mutex_lock(server_lock);
   LOCK_COMMAND(&server_lock);
 
-
+ // printf("Blas_num_threads inside shutdown:%d\n",blas_num_threads);
   for (i = 0; i < blas_num_threads - 1; i++) {
 
 
