@@ -133,10 +133,10 @@ static unsigned long server_lock       = 0;
 #define THREAD_STATUS_WAKEUP		4
 
 //static pthread_t       blas_threads [MAX_CPU_/bNUMBER
-ABT_xstream      *xstreams ;
-ABT_pool         *pools    ;
-ABT_thread       *blas_threads;
-ABT_sched 	*scheds ;
+static ABT_xstream      xstreams[MAX_CPU_NUMBER] ;
+static ABT_pool         pools[MAX_CPU_NUMBER]  ;
+static ABT_thread       blas_threads[MAX_CPU_NUMBER];
+static ABT_sched 	scheds[MAX_CPU_NUMBER] ;
 //static ABT_sched	scheds	[MAX_CPU_NUMBER];
 typedef struct {
   blas_queue_t * volatile queue   __attribute__((aligned(ATTRIBUTE_SIZE)));
@@ -577,7 +577,8 @@ static int blas_monitor(void *arg){
   int i;
 
   while(1){
-    for (i = 0; i < blas_num_threads - 1; i++){
+	  //Change -1
+    for (i = 0; i < blas_num_threads; i++){
       switch (main_status[i]) {
       case MAIN_ENTER :
 	fprintf(STDERR, "THREAD[%2d] : Entering.\n", i);
@@ -635,26 +636,18 @@ int sched_free(ABT_sched sched)
     return ABT_SUCCESS;
 }
 void sched_run(ABT_sched sched){
-	printf("Huh HUh\n");
-	int work_count=0;
-	 char *thread_count=getenv("thread_count");
-         int num_pools=atoi(thread_count);
-	 ABT_sched_get_num_pools(sched, &num_pools);
-	 printf("Number of pools:%d\n",num_pools);
-	ABT_pool *pools=(ABT_pool *)malloc(sizeof(ABT_pool) * num_pools);
-	ABT_unit *unit=(ABT_unit *)malloc(sizeof(ABT_unit) * num_pools);
-	ABT_sched_get_pools(sched, num_pools, 0, pools);
+	ABT_pool *pools=(ABT_pool *)malloc(sizeof(ABT_pool) * 1);
+	ABT_unit *unit=(ABT_unit *)malloc(sizeof(ABT_unit) * 1);
+	ABT_sched_get_pools(sched, 1 , 0 , pools);
 	 while(1){
-		ABT_pool_pop(pools[work_count],&unit[work_count]);
-		if(unit[work_count]!=ABT_UNIT_NULL){
-			printf("Workcount:%d\n",work_count);
-			ABT_unit_set_associated_pool(unit[work_count],pools[work_count]);
-			ABT_xstream_run_unit(unit[work_count],pools[work_count]);
+		ABT_pool_pop(pools[0],&unit[0]);
+		if(unit[0]!=ABT_UNIT_NULL){
+			ABT_unit_set_associated_pool(unit[0],pools[0]);
+			ABT_xstream_run_unit(unit[0],pools[0]);
 			goto EVENT_CHECK;
 		}
 		EVENT_CHECK:
-		printf("Event check\n");
-		if(++work_count%num_pools ==0){
+		{
 			ABT_bool stop;
 			ABT_xstream_check_events(sched);
 			ABT_sched_has_to_stop(sched, &stop);
@@ -673,7 +666,7 @@ int blas_thread_init(void){
 	int thread_timeout_env;
 	char *thread_count=getenv("thread_count");
 	blas_num_threads=atoi(thread_count);
-	printf("Thread count%d\n",blas_num_threads);
+	//printf("Thread count%d\n",blas_num_threads);
 #ifdef NEED_STACKATTR
 	ABT_thread_attr *attr;
 #endif
@@ -687,9 +680,7 @@ int blas_thread_init(void){
 
 	//ABT_mutex_lock(server_lock);
 	LOCK_COMMAND(&server_lock);
-
 	if (!blas_server_avail){
-
 		thread_timeout_env=openblas_thread_timeout();
 		if (thread_timeout_env>0) {
 			if (thread_timeout_env <  4) thread_timeout_env =  4;
@@ -698,10 +689,10 @@ int blas_thread_init(void){
 		}
 		 int argc; char **argv;
 		 int num_xstreams=blas_num_threads;
-		 xstreams = (ABT_xstream *)malloc(sizeof(ABT_xstream) * num_xstreams);
-		 pools = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams);
-		 scheds = (ABT_sched *)malloc(sizeof(ABT_sched) * num_xstreams);
-		 blas_threads = (ABT_thread *)malloc(sizeof(ABT_thread) * num_xstreams);
+		// xstreams = (ABT_xstream *)malloc(sizeof(ABT_xstream) * num_xstreams);
+		 //pools = (ABT_pool *)malloc(sizeof(ABT_pool) * num_xstreams);
+		 //scheds = (ABT_sched *)malloc(sizeof(ABT_sched) * num_xstreams);
+		 //blas_threads = (ABT_thread *)malloc(sizeof(ABT_thread) * num_xstreams);
 		 ABT_init(argc,argv);
 		 for (i = 0; i < blas_num_threads; i++) {
 			 ABT_pool_create_basic(ABT_POOL_FIFO, ABT_POOL_ACCESS_MPMC, ABT_TRUE,
@@ -723,28 +714,16 @@ int blas_thread_init(void){
 					 tmp[j]=pools[j];
 			 }*/
 			 //ABT_pool *tmp=pools[i];
-			 printf("Hello\n");
 			 ABT_sched_create(&sched_def, 1 , tmp , ABT_SCHED_CONFIG_NULL,
 					 &scheds[i]);
 			 free(tmp);
 		 }
-		 printf("Created schedulers\n");
 		 ABT_xstream_self(&xstreams[0]);
-		 printf("Xstream self\n");
-		 if(ABT_xstream_set_main_sched(xstreams[0], scheds[0])==ABT_SUCCESS)
-		 	printf("Recieved handle\n");
-		 for (i = 0; i < blas_num_threads ; i++) {
-			 printf("Stream creatin:%d\n",i);
+		 ABT_xstream_set_main_sched(xstreams[0], scheds[0]);
+		 for (i = 1; i < blas_num_threads ; i++) {
 			 ABT_xstream_create(scheds[i], &xstreams[i]);
 		 }
-		 printf("Created Streams\n");
-		 /*for ( i = 0; i < blas_num_threads  - 1; i++) {
-		   ABT_xstream_get_main_pools(xstreams[i], 1, &pools[i]);
-		   }*/
 
-
-		 printf("Hello\n");
-		 printf("Hello\n");
 		 for(i = 0; i < blas_num_threads; i++){
 
 			 int pool_id=i;
@@ -799,8 +778,6 @@ int blas_thread_init(void){
 		 blas_server_avail = 1;
 
 	} 
-	//ABT_mutex_unlock(server_lock);
-	printf("Created Threads annd Locked'em\n");
 	UNLOCK_COMMAND(&server_lock);
 	return 0;
 }
@@ -854,12 +831,13 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
 
 			do {
 
-				while((thread_status[i].node != node || atomic_load_queue(&thread_status[i].queue)) && (i < blas_num_threads - 1)) i ++;
+				//change -1
+				while((thread_status[i].node != node || atomic_load_queue(&thread_status[i].queue)) && (i < blas_num_threads)) i ++;
 
-				if (i < blas_num_threads - 1) break;
+				if (i < blas_num_threads) break;
 
 				i ++;
-				if (i >= blas_num_threads - 1) {
+				if (i >= blas_num_threads) {
 					i = 0;
 					node ++;
 					if (node >= nodes) node = 0;
@@ -871,7 +849,7 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
 			tsiq = atomic_load_queue(&thread_status[i].queue);
 			while(tsiq) {
 				i ++;
-				if (i >= blas_num_threads - 1) i = 0;
+				if (i >= blas_num_threads) i = 0;
 				tsiq = atomic_load_queue(&thread_status[i].queue);
 			}
 		}
@@ -879,7 +857,7 @@ int exec_blas_async(BLASLONG pos, blas_queue_t *queue){
 		tsiq = atomic_load_queue(&thread_status[i].queue);
 		while(tsiq) {
 			i ++;
-			if (i >= blas_num_threads - 1) i = 0;
+			if (i >= blas_num_threads) i = 0;
 			tsiq = atomic_load_queue(&thread_status[i].queue);
 		}
 #endif
@@ -1223,9 +1201,9 @@ int BLASFUNC(blas_thread_shutdown)(void){
 
 
 	ABT_finalize();
-	free(xstreams);
-	free(pools);
-	free(scheds);
+	//free(xstreams);
+	//free(pools);
+	//free(scheds);
 
 #ifdef NEED_STACKATTR
 	ABT_attr_free(&attr);
